@@ -44,7 +44,7 @@ var redisStore = function redisStore() {
         }
 
         var ttl = options.ttl || options.ttl === 0 ? options.ttl : storeArgs.ttl;
-        var val = JSON.stringify(value) || '"undefined"';
+        var val = (value instanceof Buffer ? value : JSON.stringify(value)) || '"undefined"';
 
         if (ttl) {
           redisCache.setex(key, ttl, val, handleResponse(cb));
@@ -99,7 +99,7 @@ var redisStore = function redisStore() {
             return cb(new Error('value cannot be ' + value));
           }
 
-          value = JSON.stringify(value) || '"undefined"';
+          value = (value instanceof Buffer ? value : JSON.stringify(value)) || '"undefined"';
           parsed.push.apply(parsed, [key, value]);
 
           if (ttl) {
@@ -126,9 +126,15 @@ var redisStore = function redisStore() {
           };
         }
 
-        redisCache.get(key, handleResponse(cb, {
-          parse: true
-        }));
+        if (options.isBufferType) {
+          redisCache.getBuffer(key, handleResponse(cb, {
+            parse: false
+          }));
+        } else {
+          redisCache.get(key, handleResponse(cb, {
+            parse: true
+          }));
+        }
       });
     },
     mget: function mget() {
@@ -153,10 +159,15 @@ var redisStore = function redisStore() {
             return err ? reject(err) : resolve(result);
           };
         }
-
-        redisCache.mget.apply(redisCache, [].concat(args, [handleResponse(cb, {
-          parse: true
-        })]));
+        if (options.isBufferType) {
+          redisCache.mgetBuffer.apply(redisCache, [].concat(args, [handleResponse(cb, {
+            parse: false
+          })]));
+        } else {
+          redisCache.mget.apply(redisCache, [].concat(args, [handleResponse(cb, {
+            parse: true
+          })]));
+        }
       });
     },
     del: function del() {

@@ -32,7 +32,7 @@ const redisStore = (...args) => {
         }
 
         const ttl = (options.ttl || options.ttl === 0) ? options.ttl : storeArgs.ttl;
-        const val = JSON.stringify(value) || '"undefined"';
+        const val = ((value instanceof Buffer) ? value : JSON.stringify(value)) || '"undefined"';
 
         if (ttl) {
           redisCache.setex(key, ttl, val, handleResponse(cb));
@@ -81,7 +81,7 @@ const redisStore = (...args) => {
             return cb(new Error(`value cannot be ${value}`));
           }
 
-          value = JSON.stringify(value) || '"undefined"';
+          value = ((value instanceof Buffer) ? value : JSON.stringify(value)) || '"undefined"';
           parsed.push(...[key, value]);
 
           if (ttl) {
@@ -106,9 +106,15 @@ const redisStore = (...args) => {
           cb = (err, result) => (err ? reject(err) : resolve(result));
         }
 
-        redisCache.get(key, handleResponse(cb, {
-          parse: true
-        }));
+        if (options.isBufferType) {
+          redisCache.getBuffer(key, handleResponse(cb, {
+            parse: false
+          }));
+        } else {
+          redisCache.get(key, handleResponse(cb, {
+            parse: true
+          }));  
+        }
       })
     ),
     mget: (...args) => (
@@ -127,10 +133,15 @@ const redisStore = (...args) => {
         if (!cb) {
           cb = (err, result) => (err ? reject(err) : resolve(result));
         }
-
-        redisCache.mget.apply(redisCache, [...args, handleResponse(cb, {
-          parse: true
-        })]);
+        if (options.isBufferType) {
+          redisCache.mgetBuffer.apply(redisCache, [...args, handleResponse(cb, {
+            parse: false
+          })]);  
+        } else {
+          redisCache.mget.apply(redisCache, [...args, handleResponse(cb, {
+            parse: true
+          })]);  
+        }
       })
     ),
     del: (...args) => (
