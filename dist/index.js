@@ -126,7 +126,7 @@ var redisStore = function redisStore() {
           };
         }
 
-        if (options.isBufferType) {
+        if (options && options.isBufferType) {
           redisCache.getBuffer(key, handleResponse(cb, {
             parse: false
           }));
@@ -159,7 +159,7 @@ var redisStore = function redisStore() {
             return err ? reject(err) : resolve(result);
           };
         }
-        if (options.isBufferType) {
+        if (options && options.isBufferType) {
           redisCache.mgetBuffer.apply(redisCache, [].concat(args, [handleResponse(cb, {
             parse: false
           })]));
@@ -236,7 +236,7 @@ var redisStore = function redisStore() {
         redisCache.ttl(key, handleResponse(cb));
       });
     },
-    isCacheableValue: storeArgs.is_cacheable_value || function (value) {
+    isCacheableValue: storeArgs.isCacheableValue || function (value) {
       return value !== undefined && value !== null;
     }
   };

@@ -106,7 +106,7 @@ const redisStore = (...args) => {
           cb = (err, result) => (err ? reject(err) : resolve(result));
         }
 
-        if (options.isBufferType) {
+        if (options && options.isBufferType) {
           redisCache.getBuffer(key, handleResponse(cb, {
             parse: false
           }));
@@ -133,7 +133,7 @@ const redisStore = (...args) => {
         if (!cb) {
           cb = (err, result) => (err ? reject(err) : resolve(result));
         }
-        if (options.isBufferType) {
+        if (options && options.isBufferType) {
           redisCache.mgetBuffer.apply(redisCache, [...args, handleResponse(cb, {
             parse: false
           })]);  
@@ -196,7 +196,7 @@ const redisStore = (...args) => {
         redisCache.ttl(key, handleResponse(cb));
       })
     ),
-    isCacheableValue: storeArgs.is_cacheable_value || (value => value !== undefined && value !== null),
+    isCacheableValue: storeArgs.isCacheableValue || (value => value !== undefined && value !== null),
   };
 };
 
