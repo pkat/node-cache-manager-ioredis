@@ -1,262 +1,232 @@
 'use strict';
 
-function _interopDefault (ex) { return (ex && (typeof ex === 'object') && 'default' in ex) ? ex['default'] : ex; }
+const Redis = require('ioredis');
 
-var Redis = _interopDefault(require('ioredis'));
+const redisStore = (...args) => {
+  let redisCache = null;
 
-var redisStore = function redisStore() {
-  for (var _len = arguments.length, args = Array(_len), _key = 0; _key < _len; _key++) {
-    args[_key] = arguments[_key];
-  }
-
-  var redisCache = null;
-
-  if (args.length > 0 && args[0].clusterConfig) {
-    var _args$0$clusterConfig = args[0].clusterConfig,
-        nodes = _args$0$clusterConfig.nodes,
-        options = _args$0$clusterConfig.options;
-
+  if (args.length > 0 && args[0].redisInstance) {
+    redisCache = args[0].redisInstance;
+  } else if (args.length > 0 && args[0].clusterConfig) {
+    const {
+      nodes,
+      options
+    } = args[0].clusterConfig;
 
     redisCache = new Redis.Cluster(nodes, options || {});
   } else {
-    redisCache = new (Function.prototype.bind.apply(Redis, [null].concat(args)))();
+    redisCache = new Redis(...args);
   }
 
-  var storeArgs = redisCache.options;
+  const storeArgs = redisCache.options;
 
-  return {
+  let self = {
     name: 'redis',
-    getClient: function getClient() {
-      return redisCache;
-    },
-    set: function set(key, value, options, cb) {
-      return new Promise(function (resolve, reject) {
-        if (typeof options === 'function') {
-          cb = options;
-          options = {};
-        }
-        options = options || {};
-
-        if (!cb) {
-          cb = function cb(err, result) {
-            return err ? reject(err) : resolve(result);
-          };
-        }
-
-        var ttl = options.ttl || options.ttl === 0 ? options.ttl : storeArgs.ttl;
-        var val = (value instanceof Buffer ? value : JSON.stringify(value)) || '"undefined"';
-
-        if (ttl) {
-          redisCache.setex(key, ttl, val, handleResponse(cb));
-        } else {
-          redisCache.set(key, val, handleResponse(cb));
-        }
-      });
-    },
-    mset: function mset() {
-      for (var _len2 = arguments.length, args = Array(_len2), _key2 = 0; _key2 < _len2; _key2++) {
-        args[_key2] = arguments[_key2];
-      }
-
-      var _this = this;
-
-      return new Promise(function (resolve, reject) {
-        var cb = void 0;
-        var options = {};
-
-        if (typeof args[args.length - 1] === 'function') {
-          cb = args.pop();
-        }
-
-        if (args[args.length - 1] instanceof Object && args[args.length - 1].constructor === Object) {
-          options = args.pop();
-        }
-
-        if (!cb) {
-          cb = function cb(err, result) {
-            return err ? reject(err) : resolve(result);
-          };
-        }
-
-        var ttl = options.ttl || options.ttl === 0 ? options.ttl : storeArgs.ttl;
-
-        var multi = void 0;
-        if (ttl) {
-          multi = redisCache.multi();
-        }
-
-        var key = void 0;
-        var value = void 0;
-        var parsed = [];
-        for (var i = 0; i < args.length; i += 2) {
-          key = args[i];
-          value = args[i + 1];
-
-          /**
-           * Make sure the value is cacheable
-           */
-          if (!_this.isCacheableValue(value)) {
-            return cb(new Error('value cannot be ' + value));
-          }
-
-          value = (value instanceof Buffer ? value : JSON.stringify(value)) || '"undefined"';
-          parsed.push.apply(parsed, [key, value]);
-
-          if (ttl) {
-            multi.setex(key, ttl, value);
-          }
-        }
-
-        if (ttl) {
-          multi.exec(handleResponse(cb));
-        } else {
-          redisCache.mset.apply(redisCache, [].concat(parsed, [handleResponse(cb)]));
-        }
-      });
-    },
-    get: function get(key, options, cb) {
-      return new Promise(function (resolve, reject) {
-        if (typeof options === 'function') {
-          cb = options;
-        }
-
-        if (!cb) {
-          cb = function cb(err, result) {
-            return err ? reject(err) : resolve(result);
-          };
-        }
-
-        if (options && options.isBufferType) {
-          redisCache.getBuffer(key, handleResponse(cb, {
-            parse: false
-          }));
-        } else {
-          redisCache.get(key, handleResponse(cb, {
-            parse: true
-          }));
-        }
-      });
-    },
-    mget: function mget() {
-      for (var _len3 = arguments.length, args = Array(_len3), _key3 = 0; _key3 < _len3; _key3++) {
-        args[_key3] = arguments[_key3];
-      }
-
-      return new Promise(function (resolve, reject) {
-        var cb = void 0;
-        var options = {};
-
-        if (typeof args[args.length - 1] === 'function') {
-          cb = args.pop();
-        }
-
-        if (args[args.length - 1] instanceof Object && args[args.length - 1].constructor === Object) {
-          options = args.pop();
-        }
-
-        if (!cb) {
-          cb = function cb(err, result) {
-            return err ? reject(err) : resolve(result);
-          };
-        }
-        if (options && options.isBufferType) {
-          redisCache.mgetBuffer.apply(redisCache, [].concat(args, [handleResponse(cb, {
-            parse: false
-          })]));
-        } else {
-          redisCache.mget.apply(redisCache, [].concat(args, [handleResponse(cb, {
-            parse: true
-          })]));
-        }
-      });
-    },
-    del: function del() {
-      for (var _len4 = arguments.length, args = Array(_len4), _key4 = 0; _key4 < _len4; _key4++) {
-        args[_key4] = arguments[_key4];
-      }
-
-      return new Promise(function (resolve, reject) {
-        var cb = void 0;
-        var options = {};
-
-        if (typeof args[args.length - 1] === 'function') {
-          cb = args.pop();
-        }
-
-        if (args[args.length - 1] instanceof Object && args[args.length - 1].constructor === Object) {
-          options = args.pop();
-        }
-
-        if (!cb) {
-          cb = function cb(err, result) {
-            return err ? reject(err) : resolve(result);
-          };
-        }
-
-        redisCache.del.apply(redisCache, [].concat(args, [handleResponse(cb)]));
-      });
-    },
-    reset: function reset(cb) {
-      return new Promise(function (resolve, reject) {
-        if (!cb) {
-          cb = function cb(err, result) {
-            return err ? reject(err) : resolve(result);
-          };
-        }
-
-        redisCache.flushdb(handleResponse(cb));
-      });
-    },
-    keys: function keys() {
-      var pattern = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : '*';
-      var cb = arguments[1];
-      return new Promise(function (resolve, reject) {
-        if (typeof pattern === 'function') {
-          cb = pattern;
-          pattern = '*';
-        }
-
-        if (!cb) {
-          cb = function cb(err, result) {
-            return err ? reject(err) : resolve(result);
-          };
-        }
-
-        redisCache.keys(pattern, handleResponse(cb));
-      });
-    },
-    ttl: function ttl(key, cb) {
-      return new Promise(function (resolve, reject) {
-        if (!cb) {
-          cb = function cb(err, result) {
-            return err ? reject(err) : resolve(result);
-          };
-        }
-
-        redisCache.ttl(key, handleResponse(cb));
-      });
-    },
-    isCacheableValue: storeArgs.isCacheableValue || function (value) {
-      return value !== undefined && value !== null;
-    }
+    isCacheableValue: storeArgs.isCacheableValue || (value => value !== undefined && value !== null),
   };
+
+  self.getClient = () => redisCache;
+
+  self.set = (key, value, options, cb) => (
+    new Promise((resolve, reject) => {
+      if (typeof options === 'function') {
+        cb = options;
+        options = {};
+      }
+      options = options || {};
+
+      if (!cb) {
+        cb = (err, result) => (err ? reject(err) : resolve(result));
+      }
+
+      if (!self.isCacheableValue(value)) {
+        return cb(new Error(`"${value}" is not a cacheable value`));
+      }
+
+      const ttl = (options.ttl || options.ttl === 0) ? options.ttl : storeArgs.ttl;
+      const val = ((value instanceof Buffer) ? value : JSON.stringify(value)) || '"undefined"';
+
+      if (ttl) {
+        redisCache.setex(key, ttl, val, handleResponse(cb));
+      } else {
+        redisCache.set(key, val, handleResponse(cb));
+      }
+    })
+  );
+
+  self.mset = (...args) => {
+    return new Promise((resolve, reject) => {
+      let cb;
+      let options = {};
+
+      if (typeof args[args.length - 1] === 'function') {
+        cb = args.pop();
+      }
+
+      if (args[args.length - 1] instanceof Object && args[args.length - 1].constructor === Object) {
+        options = args.pop();
+      }
+
+      if (!cb) {
+        cb = (err, result) => (err ? reject(err) : resolve(result));
+      }
+
+      const ttl = (options.ttl || options.ttl === 0) ? options.ttl : storeArgs.ttl;
+
+      let multi;
+      if (ttl) {
+        multi = redisCache.multi();
+      }
+
+      let key;
+      let value;
+      const parsed = [];
+      for (let i = 0; i < args.length; i += 2) {
+        key = args[i];
+        value = args[i + 1];
+
+        /**
+         * Make sure the value is cacheable
+         */
+        if (!self.isCacheableValue(value)) {
+          return cb(new Error(`value cannot be ${value}`));
+        }
+
+        value = ((value instanceof Buffer) ? value : JSON.stringify(value)) || '"undefined"';
+        parsed.push(...[key, value]);
+
+        if (ttl) {
+          multi.setex(key, ttl, value);
+        }
+      }
+
+      if (ttl) {
+        multi.exec(handleResponse(cb));
+      } else {
+        redisCache.mset.apply(redisCache, [...parsed, handleResponse(cb)]);
+      }
+    });
+  };
+
+  self.get = (key, options, cb) => (
+    new Promise((resolve, reject) => {
+      if (typeof options === 'function') {
+        cb = options;
+      }
+
+      if (!cb) {
+        cb = (err, result) => (err ? reject(err) : resolve(result));
+      }
+
+      if (options && options.isBufferType) {
+        redisCache.getBuffer(key, handleResponse(cb, { parse: false }));
+      } else {
+        redisCache.get(key, handleResponse(cb, { parse: true }));
+      }
+    })
+  );
+
+  self.mget = (...args) => (
+    new Promise((resolve, reject) => {
+      let cb;
+      let options = {};
+
+      if (typeof args[args.length - 1] === 'function') {
+        cb = args.pop();
+      }
+
+      if (args[args.length - 1] instanceof Object && args[args.length - 1].constructor === Object) {
+        options = args.pop();
+      }
+
+      if (!cb) {
+        cb = (err, result) => (err ? reject(err) : resolve(result));
+      }
+      if (options && options.isBufferType) {
+        redisCache.mgetBuffer.apply(redisCache, [...args, handleResponse(cb, {
+          parse: false
+        })]);
+      } else {
+        redisCache.mget.apply(redisCache, [...args, handleResponse(cb, {
+          parse: true
+        })]);
+      }
+    })
+  );
+
+
+  self.del = (...args) => (
+    new Promise((resolve, reject) => {
+      let cb;
+      let options = {};
+
+      if (typeof args[args.length - 1] === 'function') {
+        cb = args.pop();
+      }
+
+      if (args[args.length - 1] instanceof Object && args[args.length - 1].constructor === Object) {
+        options = args.pop();
+      }
+
+      if (!cb) {
+        cb = (err, result) => (err ? reject(err) : resolve(result));
+      }
+
+      redisCache.del.apply(redisCache, [...args, handleResponse(cb)]);
+    })
+  );
+
+  self.reset = cb => (
+    new Promise((resolve, reject) => {
+      if (!cb) {
+        cb = (err, result) => (err ? reject(err) : resolve(result));
+      }
+
+      redisCache.flushdb(handleResponse(cb));
+    })
+  );
+
+  self.keys = (pattern = '*', cb) => (
+    new Promise((resolve, reject) => {
+      if (typeof pattern === 'function') {
+        cb = pattern;
+        pattern = '*';
+      }
+
+      if (!cb) {
+        cb = (err, result) => (err ? reject(err) : resolve(result));
+      }
+
+      redisCache.keys(pattern, handleResponse(cb));
+    })
+  );
+
+  self.ttl = (key, cb) => (
+    new Promise((resolve, reject) => {
+      if (!cb) {
+        cb = (err, result) => (err ? reject(err) : resolve(result));
+      }
+
+      redisCache.ttl(key, handleResponse(cb));
+    })
+  );
+
+  return self;
 };
 
-function handleResponse(cb) {
-  var opts = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {};
-
-  return function (err, result) {
+function handleResponse(cb, opts = {}) {
+  return (err, result) => {
     if (err) {
       return cb && cb(err);
     }
 
     if (opts.parse) {
-      var isMultiple = Array.isArray(result);
+      let isMultiple = Array.isArray(result);
       if (!isMultiple) {
         result = [result];
       }
 
-      result = result.map(function (_result) {
+      result = result.map((_result) => {
         try {
           _result = JSON.parse(_result);
         } catch (e) {
@@ -272,10 +242,8 @@ function handleResponse(cb) {
   };
 }
 
-var methods = {
-  create: function create() {
-    return redisStore.apply(undefined, arguments);
-  }
+const methods = {
+  create: (...args) => redisStore(...args),
 };
 
 module.exports = methods;
